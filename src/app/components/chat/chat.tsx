@@ -88,7 +88,7 @@ export function Chat() {
               if (jsonData.error) {
                 throw new Error(jsonData.error);
               }
-            } catch (jsonError) {
+            } catch {
               // 如果不是 JSON 或解析失败，则按普通文本处理
               content += text;
             }
