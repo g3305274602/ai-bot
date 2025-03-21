@@ -14,10 +14,10 @@ export async function POST(req: Request) {
     const { messages } = await req.json();
 
     const response = await client.chat.completions.create({
-      model: 'deepseek-chat',
+      model: 'deepseek-reasoner',
       messages,
       temperature: 0.7,
-      max_tokens: 1000,
+      max_tokens: 2000,
       stream: true,
     });
 
