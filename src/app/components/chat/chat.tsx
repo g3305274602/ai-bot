@@ -7,7 +7,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { chat, ChatMessage } from "@/app/services/ai";
-import { createSession, getSessionMessages, saveMessage } from "@/lib/db";
 
 // 定义消息类型
 export interface Message {
@@ -17,19 +16,26 @@ export interface Message {
   timestamp: Date;
 }
 
+interface DbMessage {
+  id: string;
+  content: string;
+  role: "user" | "assistant";
+  created_at: string;
+}
+
 // 修改初始消息，使用固定的时间戳
 const initialMessages: Message[] = [
   {
     id: "1",
     content: "你好，我想了解一下 DeepSeek R1 的功能",
     role: "user",
-    timestamp: new Date('2024-01-01T00:00:00Z'), // 使用固定时间
+    timestamp: new Date('2024-01-01T00:00:00Z'),
   },
   {
     id: "2",
     content: "你好！我是 DeepSeek R1 智能助手，擅长编程、算法分析和技术问题解答。我可以帮助你解决各种技术问题，包括代码编写、调试、架构设计等。请问有什么具体问题我可以帮你解答吗？",
     role: "assistant",
-    timestamp: new Date('2024-01-01T00:00:01Z'), // 使用固定时间
+    timestamp: new Date('2024-01-01T00:00:01Z'),
   }
 ];
 
@@ -37,8 +43,10 @@ export function Chat() {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -49,23 +57,69 @@ export function Chat() {
   useEffect(() => {
     // 初始化会话
     async function initSession() {
-      const newSessionId = await createSession();
-      if (newSessionId) {
-        setSessionId(newSessionId);
-        const dbMessages = await getSessionMessages(newSessionId);
-        if (dbMessages.length > 0) {
-          const formattedMessages: Message[] = dbMessages.map(msg => ({
+      try {
+        setIsInitializing(true);
+        setError(null);
+
+        const response = await fetch('/api/session', {
+          method: 'POST',
+        });
+
+        if (!response.ok) {
+          throw new Error('会话初始化失败');
+        }
+
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || '会话初始化失败');
+        }
+
+        setSessionId(data.sessionId);
+        
+        if (data.messages && data.messages.length > 0) {
+          const formattedMessages: Message[] = data.messages.map((msg: DbMessage) => ({
             id: msg.id,
             content: msg.content,
-            role: msg.role as "user" | "assistant",
+            role: msg.role,
             timestamp: new Date(msg.created_at)
           }));
           setMessages(formattedMessages);
         }
+      } catch (error) {
+        console.error('会话初始化错误:', error);
+        setError(error instanceof Error ? error.message : '会话初始化失败');
+      } finally {
+        setIsInitializing(false);
       }
     }
+
     initSession();
   }, []);
+
+  const saveMessageToServer = async (message: Message & { sessionId: string }) => {
+    try {
+      const response = await fetch('/api/message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(message),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存消息失败');
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || '保存消息失败');
+      }
+    } catch (error) {
+      console.error('保存消息错误:', error);
+      // 不中断聊天流程，只记录错误
+    }
+  };
 
   const handleSend = async () => {
     if (!input.trim() || isLoading || !sessionId) return;
@@ -80,9 +134,10 @@ export function Chat() {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
+    setError(null);
 
     // 保存用户消息到数据库
-    await saveMessage({
+    await saveMessageToServer({
       ...userMessage,
       sessionId,
     });
@@ -137,25 +192,26 @@ export function Chat() {
           }
 
           // 完成后更新消息 ID
+          const finalMessage: Message = {
+            id: Date.now().toString(),
+            content,
+            role: "assistant",
+            timestamp: new Date()
+          };
+
           setMessages(prev => {
             const lastMessage = prev[prev.length - 1];
             if (lastMessage.role === "assistant" && lastMessage.id === "typing") {
-              return [
-                ...prev.slice(0, -1),
-                { ...lastMessage, id: Date.now().toString() }
-              ];
+              return [...prev.slice(0, -1), finalMessage];
             }
             return prev;
           });
 
           // 保存助手消息到数据库
           if (content) {
-            await saveMessage({
-              id: Date.now().toString(),
-              content,
-              role: "assistant",
+            await saveMessageToServer({
+              ...finalMessage,
               sessionId,
-              timestamp: new Date(),
             });
           }
         } catch (streamError) {
@@ -165,9 +221,11 @@ export function Chat() {
       }
     } catch (error) {
       console.error("Error:", error);
+      const errorMessage = error instanceof Error ? error.message : "抱歉，我遇到了一些问题。请稍后再试。";
+      setError(errorMessage);
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
-        content: error instanceof Error ? error.message : "抱歉，我遇到了一些问题。请稍后再试。",
+        content: errorMessage,
         role: "assistant",
         timestamp: new Date()
       }]);
@@ -175,6 +233,34 @@ export function Chat() {
       setIsLoading(false);
     }
   };
+
+  if (isInitializing) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-2rem)] max-w-5xl mx-auto bg-gradient-to-b from-gray-50 to-white rounded-xl shadow-2xl border border-gray-100 items-center justify-center">
+        <div className="flex items-center space-x-2">
+          <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+          <span>正在初始化聊天...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-[calc(100vh-2rem)] max-w-5xl mx-auto bg-gradient-to-b from-gray-50 to-white rounded-xl shadow-2xl border border-gray-100 items-center justify-center">
+        <div className="text-red-600 bg-red-50 p-4 rounded-lg">
+          <p className="font-medium">初始化失败</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+        <Button
+          onClick={() => window.location.reload()}
+          className="mt-4"
+        >
+          重试
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-2rem)] max-w-5xl mx-auto bg-gradient-to-b from-gray-50 to-white rounded-xl shadow-2xl border border-gray-100">
