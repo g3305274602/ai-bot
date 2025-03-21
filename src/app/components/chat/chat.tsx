@@ -7,9 +7,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { chat, ChatMessage } from "@/app/services/ai";
+import { createSession, getSessionMessages, saveMessage } from "@/lib/db";
 
 // 定义消息类型
-interface Message {
+export interface Message {
   id: string;
   content: string;
   role: "user" | "assistant";
@@ -37,6 +38,7 @@ export function Chat() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -44,8 +46,29 @@ export function Chat() {
     }
   }, [messages]);
 
+  useEffect(() => {
+    // 初始化会话
+    async function initSession() {
+      const newSessionId = await createSession();
+      if (newSessionId) {
+        setSessionId(newSessionId);
+        const dbMessages = await getSessionMessages(newSessionId);
+        if (dbMessages.length > 0) {
+          const formattedMessages: Message[] = dbMessages.map(msg => ({
+            id: msg.id,
+            content: msg.content,
+            role: msg.role as "user" | "assistant",
+            timestamp: new Date(msg.created_at)
+          }));
+          setMessages(formattedMessages);
+        }
+      }
+    }
+    initSession();
+  }, []);
+
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !sessionId) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -58,6 +81,12 @@ export function Chat() {
     setInput("");
     setIsLoading(true);
 
+    // 保存用户消息到数据库
+    await saveMessage({
+      ...userMessage,
+      sessionId,
+    });
+
     try {
       const chatMessages: ChatMessage[] = messages.map(msg => ({
         role: msg.role,
@@ -66,9 +95,9 @@ export function Chat() {
       chatMessages.push({ role: "user", content: input });
 
       const response = await chat(chatMessages);
+      let content = '';
       
       if (response) {
-        let content = '';
         const decoder = new TextDecoder();
 
         try {
@@ -83,7 +112,6 @@ export function Chat() {
                 throw new Error(jsonData.error);
               }
             } catch {
-              // 如果不是 JSON 或解析失败，则按普通文本处理
               content += text;
             }
             
@@ -119,13 +147,24 @@ export function Chat() {
             }
             return prev;
           });
+
+          // 保存助手消息到数据库
+          if (content) {
+            await saveMessage({
+              id: Date.now().toString(),
+              content,
+              role: "assistant",
+              sessionId,
+              timestamp: new Date(),
+            });
+          }
         } catch (streamError) {
           console.error("Error reading stream:", streamError);
           throw new Error("读取响应流时出错");
         }
       }
     } catch (error) {
-      console.error("Error getting AI response:", error);
+      console.error("Error:", error);
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         content: error instanceof Error ? error.message : "抱歉，我遇到了一些问题。请稍后再试。",
