@@ -75,53 +75,66 @@ export function Chat() {
       
       if (response) {
         let content = '';
-        const reader = response;
         const decoder = new TextDecoder();
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const text = decoder.decode(value);
-          content += text;
-          
+        try {
+          while (true) {
+            const { done, value } = await response.read();
+            if (done) break;
+            
+            const text = decoder.decode(value);
+            try {
+              const jsonData = JSON.parse(text);
+              if (jsonData.error) {
+                throw new Error(jsonData.error);
+              }
+            } catch (jsonError) {
+              // 如果不是 JSON 或解析失败，则按普通文本处理
+              content += text;
+            }
+            
+            setMessages(prev => {
+              const lastMessage = prev[prev.length - 1];
+              if (lastMessage.role === "assistant" && lastMessage.id === "typing") {
+                return [
+                  ...prev.slice(0, -1),
+                  { ...lastMessage, content: content }
+                ];
+              } else {
+                return [
+                  ...prev,
+                  {
+                    id: "typing",
+                    content: content,
+                    role: "assistant",
+                    timestamp: new Date()
+                  }
+                ];
+              }
+            });
+          }
+
+          // 完成后更新消息 ID
           setMessages(prev => {
             const lastMessage = prev[prev.length - 1];
             if (lastMessage.role === "assistant" && lastMessage.id === "typing") {
               return [
                 ...prev.slice(0, -1),
-                { ...lastMessage, content: content }
-              ];
-            } else {
-              return [
-                ...prev,
-                {
-                  id: "typing",
-                  content: content,
-                  role: "assistant",
-                  timestamp: new Date()
-                }
+                { ...lastMessage, id: Date.now().toString() }
               ];
             }
+            return prev;
           });
+        } catch (streamError) {
+          console.error("Error reading stream:", streamError);
+          throw new Error("读取响应流时出错");
         }
-
-        setMessages(prev => {
-          const lastMessage = prev[prev.length - 1];
-          if (lastMessage.role === "assistant" && lastMessage.id === "typing") {
-            return [
-              ...prev.slice(0, -1),
-              { ...lastMessage, id: Date.now().toString() }
-            ];
-          }
-          return prev;
-        });
       }
     } catch (error) {
       console.error("Error getting AI response:", error);
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
-        content: "抱歉，我遇到了一些问题。请稍后再试。",
+        content: error instanceof Error ? error.message : "抱歉，我遇到了一些问题。请稍后再试。",
         role: "assistant",
         timestamp: new Date()
       }]);

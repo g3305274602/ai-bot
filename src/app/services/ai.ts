@@ -14,10 +14,22 @@ export async function chat(messages: ChatMessage[]) {
     });
 
     if (!response.ok) {
-      throw new Error('Network response was not ok');
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'API request failed');
+    }
+
+    if (response.headers.get('Content-Type')?.includes('application/json')) {
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
     }
 
     const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
     return reader;
   } catch (error) {
     console.error('Error calling chat API:', error);
