@@ -1,4 +1,4 @@
-import { sql } from '@vercel/postgres';
+import { createPool } from '@vercel/postgres';
 import { Message } from '@/app/components/chat/chat';
 
 export interface DbMessage extends Omit<Message, 'timestamp'> {
@@ -6,10 +6,15 @@ export interface DbMessage extends Omit<Message, 'timestamp'> {
   created_at: string;
 }
 
+// 创建数据库连接池
+const pool = createPool({
+  connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL
+});
+
 // 测试数据库连接
 export async function testConnection() {
   try {
-    const result = await sql`SELECT NOW()`;
+    const result = await pool.sql`SELECT NOW()`;
     console.log('Database connection successful:', result);
     return true;
   } catch (error) {
@@ -26,14 +31,14 @@ export async function createTables() {
       throw new Error('Could not connect to database');
     }
 
-    await sql`
+    await pool.sql`
       CREATE TABLE IF NOT EXISTS chat_sessions (
         id TEXT PRIMARY KEY,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `;
 
-    await sql`
+    await pool.sql`
       CREATE TABLE IF NOT EXISTS chat_messages (
         id TEXT PRIMARY KEY,
         content TEXT NOT NULL,
@@ -54,7 +59,7 @@ export async function createTables() {
 export async function createSession(): Promise<string | null> {
   try {
     const sessionId = Date.now().toString();
-    await sql`
+    await pool.sql`
       INSERT INTO chat_sessions (id)
       VALUES (${sessionId})
     `;
@@ -67,7 +72,7 @@ export async function createSession(): Promise<string | null> {
 
 export async function saveMessage(message: Message & { sessionId: string }) {
   try {
-    await sql`
+    await pool.sql`
       INSERT INTO chat_messages (id, content, role, session_id)
       VALUES (${message.id}, ${message.content}, ${message.role}, ${message.sessionId})
     `;
@@ -80,7 +85,7 @@ export async function saveMessage(message: Message & { sessionId: string }) {
 
 export async function getSessionMessages(sessionId: string): Promise<DbMessage[]> {
   try {
-    const { rows } = await sql<DbMessage>`
+    const { rows } = await pool.sql<DbMessage>`
       SELECT * FROM chat_messages 
       WHERE session_id = ${sessionId}
       ORDER BY created_at ASC
