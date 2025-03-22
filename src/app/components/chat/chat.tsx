@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
@@ -189,7 +189,7 @@ export function Chat() {
   }, []);
 
   // 获取历史会话列表
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       const response = await fetch('/api/sessions');
       if (!response.ok) {
@@ -206,10 +206,10 @@ export function Chat() {
     } catch (error) {
       console.error('获取会话列表错误:', error);
     }
-  };
+  }, [selectedSessionId]);
 
   // 加载指定会话
-  const loadSession = async (sessionId: string) => {
+  const loadSession = useCallback(async (sessionId: string) => {
     try {
       setIsLoadingSession(true);
       setError(null);
@@ -267,17 +267,17 @@ export function Chat() {
     } finally {
       setIsLoadingSession(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchSessions();
-  }, []);
+  }, [fetchSessions]);
 
   useEffect(() => {
     if (selectedSessionId && !sessionId) {
       loadSession(selectedSessionId);
     }
-  }, [selectedSessionId]);
+  }, [selectedSessionId, sessionId, loadSession]);
 
   const handleNewChat = () => {
     setSelectedSessionId(null);
