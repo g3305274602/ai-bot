@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 
+type Params = { id: string };
+
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Params }
 ) {
   try {
     // 获取会话信息
@@ -44,8 +46,8 @@ export async function GET(
 }
 
 export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Params }
 ) {
   try {
     const body = await request.json();
@@ -78,8 +80,8 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Params }
 ) {
   try {
     // 首先删除会话相关的所有消息
