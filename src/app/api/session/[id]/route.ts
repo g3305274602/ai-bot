@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 
+type RouteContext = {
+  params: {
+    id: string;
+  };
+};
+
 export async function GET(
-  request: NextRequest,
-  context: { params: { id: string } }
+  _request: NextRequest,
+  { params }: RouteContext
 ) {
   try {
     // 获取会话信息
     const { rows: sessionRows } = await sql`
       SELECT id, created_at, title
       FROM sessions
-      WHERE id = ${context.params.id}
+      WHERE id = ${params.id}
     `;
 
     if (sessionRows.length === 0) {
@@ -24,13 +30,13 @@ export async function GET(
     const { rows: messageRows } = await sql`
       SELECT id, content, role, created_at
       FROM messages
-      WHERE session_id = ${context.params.id}
+      WHERE session_id = ${params.id}
       ORDER BY created_at ASC
     `;
 
     return NextResponse.json({
       success: true,
-      sessionId: context.params.id,
+      sessionId: params.id,
       session: sessionRows[0],
       messages: messageRows
     });
@@ -45,7 +51,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: RouteContext
 ) {
   try {
     const body = await request.json();
@@ -62,7 +68,7 @@ export async function PATCH(
     await sql`
       UPDATE sessions
       SET title = ${title}
-      WHERE id = ${context.params.id}
+      WHERE id = ${params.id}
     `;
 
     return NextResponse.json({
@@ -78,20 +84,20 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: NextRequest,
-  context: { params: { id: string } }
+  _request: NextRequest,
+  { params }: RouteContext
 ) {
   try {
     // 首先删除会话相关的所有消息
     await sql`
       DELETE FROM messages 
-      WHERE session_id = ${context.params.id}
+      WHERE session_id = ${params.id}
     `;
 
     // 然后删除会话本身
     await sql`
       DELETE FROM sessions 
-      WHERE id = ${context.params.id}
+      WHERE id = ${params.id}
     `;
 
     return NextResponse.json({ success: true });
