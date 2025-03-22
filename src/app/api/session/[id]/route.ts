@@ -1,11 +1,15 @@
-import {  NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 
-type Params = { id: string };
+interface RouteParams {
+  params: {
+    id: string;
+  };
+}
 
 export async function GET(
-  request: Request,
-  { params }: { params: Params }
+  req: NextRequest,
+  { params }: RouteParams
 ) {
   try {
     // 获取会话信息
@@ -46,11 +50,11 @@ export async function GET(
 }
 
 export async function PATCH(
-  request: Request,
-  { params }: { params: Params }
+  req: NextRequest,
+  { params }: RouteParams
 ) {
   try {
-    const body = await request.json();
+    const body = await req.json();
     const { title } = body;
 
     if (!title) {
@@ -80,8 +84,8 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: Request,
-  { params }: { params: Params }
+  req: NextRequest,
+  { params }: RouteParams
 ) {
   try {
     // 首先删除会话相关的所有消息
