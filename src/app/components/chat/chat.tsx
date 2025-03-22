@@ -71,7 +71,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({ isOpen, onClose, onConfir
   if (!isOpen) return null;
   
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/20" onClick={onClose} />
       <div className="relative bg-white rounded-lg shadow-lg max-w-sm w-full mx-4">
         <div className="p-4">
@@ -198,15 +198,11 @@ export function Chat() {
       const data = await response.json();
       if (data.success && data.sessions.length > 0) {
         setSessions(data.sessions);
-        // 如果没有选中的会话，自动选择最新的会话
-        if (!selectedSessionId) {
-          setSelectedSessionId(data.sessions[0].id);
-        }
       }
     } catch (error) {
       console.error('获取会话列表错误:', error);
     }
-  }, [selectedSessionId]);
+  }, []);
 
   // 加载指定会话
   const loadSession = useCallback(async (sessionId: string) => {
@@ -225,7 +221,6 @@ export function Chat() {
       }
 
       setSessionId(data.sessionId);
-      setSelectedSessionId(data.sessionId);
       
       if (data.messages && data.messages.length > 0) {
         const formattedMessages: Message[] = data.messages.map((msg: DbMessage) => ({
@@ -235,20 +230,15 @@ export function Chat() {
           timestamp: new Date(msg.created_at)
         }));
 
-        // 先设置消息但不显示
         setMessages([]);
         
-        // 使用 requestAnimationFrame 确保在下一帧渲染前设置消息
         requestAnimationFrame(() => {
           const scrollArea = scrollAreaRef.current;
           if (scrollArea) {
             const scrollContainer = scrollArea.querySelector('[data-radix-scroll-area-viewport]');
             if (scrollContainer instanceof HTMLElement) {
-              // 先将滚动容器滚动到顶部
               scrollContainer.scrollTop = 0;
-              // 然后设置消息
               setMessages(formattedMessages);
-              // 立即滚动到底部，不使用动画
               requestAnimationFrame(() => {
                 scrollContainer.scrollTo({
                   top: scrollContainer.scrollHeight,
@@ -274,16 +264,23 @@ export function Chat() {
   }, [fetchSessions]);
 
   useEffect(() => {
-    if (selectedSessionId && !sessionId) {
+    if (selectedSessionId && !sessionId && sessions.some(s => s.id === selectedSessionId)) {
       loadSession(selectedSessionId);
     }
-  }, [selectedSessionId, sessionId, loadSession]);
+  }, [selectedSessionId, sessionId, loadSession, sessions]);
 
-  const handleNewChat = () => {
+  const handleNewChat = useCallback((e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setSelectedSessionId(null);
     setSessionId(null);
     setMessages([]);
-  };
+    if (windowWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }, [windowWidth]);
 
   const saveMessageToServer = async (message: Message & { sessionId: string }) => {
     try {
@@ -699,9 +696,10 @@ export function Chat() {
                 </div>
               </button>
               <div className="flex items-center gap-2 flex-1">
-                <Button
+                <button
                   onClick={handleNewChat}
-                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white shadow-md w-full md:w-auto"
+                  type="button"
+                  className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white shadow-md w-full md:w-auto h-9 px-4 rounded-md text-sm font-medium disabled:opacity-50"
                   disabled={isLoading}
                 >
                   <svg
@@ -718,7 +716,7 @@ export function Chat() {
                     />
                   </svg>
                   <span>新对话</span>
-                </Button>
+                </button>
               </div>
             </div>
           </div>
@@ -816,7 +814,7 @@ export function Chat() {
                   <div
                     key={session.id}
                     className={`group relative w-full transition-all ${
-                      isSidebarOpen ? 'flex flex-col mb-1.5 px-3' : 'flex justify-center'
+                      isSidebarOpen ? 'mb-1.5 px-3 flex justify-center' : 'flex justify-center'
                     }`}
                   >
                     <button
@@ -879,14 +877,14 @@ export function Chat() {
                           setDeleteTarget(session.id);
                           setShowDeleteConfirm(true);
                         }}
-                        className="absolute right-5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200"
+                        className={`p-2 rounded-lg transition-all duration-200 text-gray-400 hover:text-red-500 hover:bg-red-50`}
                         disabled={isDeleting || isLoading}
                         title="删除会话"
                       >
                         <svg
                           viewBox="0 0 24 24"
                           fill="none"
-                          className="w-4 h-4 text-red-500"
+                          className="w-4 h-4"
                           stroke="currentColor"
                           strokeWidth="2"
                         >
@@ -997,11 +995,7 @@ export function Chat() {
                               setDeleteTarget(session.id);
                               setShowDeleteConfirm(true);
                             }}
-                            className={`p-2 rounded-lg transition-all duration-200 ${
-                              selectedSessionId === session.id
-                                ? "text-white/70 hover:text-white hover:bg-white/10"
-                                : "text-gray-400 hover:text-red-500 hover:bg-red-50"
-                            }`}
+                            className={`p-2 rounded-lg transition-all duration-200 text-gray-400 hover:text-red-500 hover:bg-red-50`}
                             disabled={isDeleting || isLoading}
                             title="删除会话"
                           >
@@ -1190,6 +1184,7 @@ export function Chat() {
                 </div>
                 <Button 
                   onClick={handleSend}
+                  type="button"
                   className="h-[50px] px-8 rounded-2xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white shadow-md transition-all flex-shrink-0"
                   disabled={isLoading}
                 >
