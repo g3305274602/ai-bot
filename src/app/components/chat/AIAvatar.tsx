@@ -10,7 +10,7 @@ export default function AIAvatar({ showStatus = false }: AIAvatarProps) {
     <div className="flex-shrink-0 relative">
       <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-purple-200 bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
         <Image
-          src="/images/ai-avatar-2.jpg"
+          src="/images/ai-avatar-3.jpg"
           alt="AI Avatar"
           width={40}
           height={40}
