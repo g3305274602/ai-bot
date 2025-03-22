@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@vercel/postgres';
 
-interface RouteParams {
-  params: {
-    id: string;
-  };
-}
-
 export async function GET(
-  req: NextRequest,
-  { params }: RouteParams
+  request: NextRequest,
+  context: { params: { id: string } }
 ) {
   try {
     // 获取会话信息
     const { rows: sessionRows } = await sql`
       SELECT id, created_at, title
       FROM sessions
-      WHERE id = ${params.id}
+      WHERE id = ${context.params.id}
     `;
 
     if (sessionRows.length === 0) {
@@ -30,13 +24,13 @@ export async function GET(
     const { rows: messageRows } = await sql`
       SELECT id, content, role, created_at
       FROM messages
-      WHERE session_id = ${params.id}
+      WHERE session_id = ${context.params.id}
       ORDER BY created_at ASC
     `;
 
     return NextResponse.json({
       success: true,
-      sessionId: params.id,
+      sessionId: context.params.id,
       session: sessionRows[0],
       messages: messageRows
     });
@@ -50,11 +44,11 @@ export async function GET(
 }
 
 export async function PATCH(
-  req: NextRequest,
-  { params }: RouteParams
+  request: NextRequest,
+  context: { params: { id: string } }
 ) {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { title } = body;
 
     if (!title) {
@@ -68,7 +62,7 @@ export async function PATCH(
     await sql`
       UPDATE sessions
       SET title = ${title}
-      WHERE id = ${params.id}
+      WHERE id = ${context.params.id}
     `;
 
     return NextResponse.json({
@@ -84,20 +78,20 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  req: NextRequest,
-  { params }: RouteParams
+  request: NextRequest,
+  context: { params: { id: string } }
 ) {
   try {
     // 首先删除会话相关的所有消息
     await sql`
       DELETE FROM messages 
-      WHERE session_id = ${params.id}
+      WHERE session_id = ${context.params.id}
     `;
 
     // 然后删除会话本身
     await sql`
       DELETE FROM sessions 
-      WHERE id = ${params.id}
+      WHERE id = ${context.params.id}
     `;
 
     return NextResponse.json({ success: true });
