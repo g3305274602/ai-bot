@@ -120,3 +120,46 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 全局滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(168, 85, 247, 0.2);
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(168, 85, 247, 0.4);
+}
+
+/* 当滚动区域处于悬停状态时显示滚动条 */
+.scroll-area-container {
+  scrollbar-gutter: stable;
+}
+
+.scroll-area-container:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(168, 85, 247, 0.4);
+}
+
+@layer utilities {
+  .scrollbar-none {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

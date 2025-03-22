@@ -1,0 +1,15 @@
+-- 创建会话表
+CREATE TABLE IF NOT EXISTS sessions (
+  id UUID PRIMARY KEY,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  title TEXT
+);
+
+-- 创建消息表
+CREATE TABLE IF NOT EXISTS messages (
+  id UUID PRIMARY KEY,
+  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+); 

@@ -1,9 +1,15 @@
 import OpenAI from 'openai';
+import fs from 'fs';
+import path from 'path';
 
 const client = new OpenAI({
   apiKey: process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY || '',
   baseURL: 'https://api.deepseek.com/v1',
 });
+
+// 读取系统提示
+const systemPromptPath = path.join(process.cwd(), 'src', 'system-prompt.txt');
+const systemPrompt = fs.readFileSync(systemPromptPath, 'utf-8');
 
 export async function POST(req: Request) {
   if (!process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY) {
@@ -13,9 +19,15 @@ export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
 
+    // 添加系统提示到消息列表开头
+    const messagesWithSystem = [
+      { role: 'system', content: systemPrompt },
+      ...messages
+    ];
+
     const response = await client.chat.completions.create({
       model: 'deepseek-reasoner',
-      messages,
+      messages: messagesWithSystem,
       temperature: 0.7,
       max_tokens: 2000,
       stream: true,

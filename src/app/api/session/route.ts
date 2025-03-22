@@ -1,28 +1,26 @@
 import { NextResponse } from 'next/server';
-import { createSession, getSessionMessages } from '@/lib/db';
+import { sql } from '@vercel/postgres';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function POST() {
   try {
-    const sessionId = await createSession();
-    if (!sessionId) {
-      throw new Error('创建会话失败');
-    }
-
-    const messages = await getSessionMessages(sessionId);
+    const sessionId = uuidv4();
     
+    // 创建新会话
+    await sql`
+      INSERT INTO sessions (id, created_at)
+      VALUES (${sessionId}, NOW())
+    `;
+
     return NextResponse.json({
       success: true,
-      sessionId,
-      messages
+      sessionId
     });
   } catch (error) {
-    console.error('会话创建失败:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : '会话创建失败'
-      },
-      { status: 500 }
-    );
+    console.error('创建会话失败:', error);
+    return NextResponse.json({
+      success: false,
+      error: '创建会话失败'
+    }, { status: 500 });
   }
 } 
